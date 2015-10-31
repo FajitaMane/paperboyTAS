@@ -1,0 +1,10 @@
+
+8
+00000	00B1	b	u	0	papers
+00001	00B2	b	u	0	current lives
+00002	00D8	b	u	0	score x 10
+00003	00D7	b	u	0	score x 100
+00004	00D6	b	u	0	score x 1,000
+00005	00D5	b	u	0	score x 10,000
+00006	00D4	b	u	0	score x 100,000
+00007	00AF	b	u	0	day
