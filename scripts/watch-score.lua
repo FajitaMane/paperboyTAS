@@ -13,6 +13,23 @@ buttons = {
 	right  = {x=7, y=4, w=2, h=2, bitmask=128}
 }
 
+menu_colors = {};
+--add white to menu_colors
+menu_colors[0] = {};
+menu_colors[0].r = 252;
+menu_colors[0].g = 252;
+menu_colors[0].b = 252;
+--add bright green to menu_colors
+menu_colors[1] = {};
+menu_colors[1].r = 0;
+menu_colors[1].g = 168;
+menu_colors[1].b = 0;
+--add black to menu_colors
+menu_colors[2] = {};
+menu_colors[2].r = 0;
+menu_colors[2].g = 0;
+menu_colors[2].b = 0;
+
 a_press = {
 	up = true,
 	down = false,
@@ -21,6 +38,17 @@ a_press = {
 	A = true,
 	B = false,
 	start = false,
+	select = false
+}
+
+start_press = {
+	up = false,
+	down = false,
+	left = false,
+	right = false,
+	A = true,
+	B = false,
+	start = true,
 	select = false
 }
 
@@ -68,6 +96,38 @@ end
 -- Typical call:  if hasbit(x, bit(3)) then ...
 function hasbit(x, p)
   return x % (p + p) >= p       
+end
+
+-- Check if the game is currently in a menu
+function is_in_menu()
+	local vals = {};
+	vals[0] = 0;
+	vals[1] = 0;
+	vals[2] = 0;
+	for x_cur = 5, 200, 5 do
+		for y_cur = 5, 100, 5 do
+			r,g,b,a = emu.getscreenpixel(x_cur, y_cur, false);
+			--this stores values for the menu_colors found on screen
+
+			for k, v in pairs(menu_colors) do
+				if (r == v.r and b == v.b and g == v.g) then
+					vals[k] = vals[k] + 1;
+				end
+			end
+		end
+	end
+	local max = 0;
+	for k, v in pairs(menu_colors) do
+		if (vals[k] > 150) then
+			if (vals[k] > max) then
+				max = vals[k];
+			end
+		end
+	end
+	if (frame % 100 == 0) then
+		emu.print("max pixels " .. max);
+	end
+	return max > 450;
 end
 
 -- get all lines from a file, returns an empty 
@@ -193,22 +253,38 @@ score_chunk = 0; -- long, stores the value of a score increase
 
 -- unsigned int. stores the current frame during the subroutine
 frame = 1;
+-- unsigned int. stores the first frame of the run nil if not frame has been found yet
+starting_frame = nil;
+last_frame_menu_text = "no";
 
 while (true) do
 	cur_lives = lives();
 	papers = memory.readbyte(0x00B1);
 	gui.text(50, 10, papers);
 	gui.text(250, 15, total_score());
-	gui.text(50, 20, "frame " .. frame);
+	if (is_in_menu()) then
+		menu_text = "yes";
+	else 
+		menu_text = "no";
+	end
+	gui.text(50, 20, "In menu: " .. menu_text);
+	if (menu_text == "yes" and frame % 3 == 0) then
+		--spam start and A until out of menus
+		joypad.write(1, start_press);
+	end
+	if (menu_text == "no" and last_frame_menu_text == "yes") then
+		emu.print("deliveries started at " .. frame);
+	end
+
 	gui.text(5, 8, "Lives: " .. cur_lives);
 	frame_toss_bool = frame_has_paper_toss(frame - 1);
 	if frame_has_paper_toss_bool then
 		gui.text(50, 40, "button press at frame " .. frame - 1);
 		frame_has_paper_toss = false;
-	else 
+	else
 		-- gui.text(50, 40, "button press not detected");
 	end
-	if (frame % (math.random(300) + 50) == 0) then
+	if (frame % (math.random(300) + 50) == 0 and menu_text == "no") then
 		joypad.write(1, a_press);
 		last_toss = frame;
 		last_toss_score = total_score();
@@ -230,6 +306,7 @@ while (true) do
 	gui.text(100, 10, tablelength(successful_toss_frames) .. " succesful AI tosses");
 	--gui.text(100, 40, #successful_toss_frames .. " successful_toss_frames found");
 	FCEU.frameadvance();
+	last_frame_menu_text = menu_text;
 	frame = frame + 1;
 end
 
