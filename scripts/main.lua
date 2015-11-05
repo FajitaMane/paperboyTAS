@@ -1,6 +1,8 @@
 local frame = 1;
 local file = '../data/run1.fm2';
 
+local gameisrunning = false;
+
 -- maps the button bit masks and allows for drawing them in the emu window
 buttons = {
 	A      = {x=30, y=5, w=3, h=3, bitmask=1},
@@ -174,19 +176,20 @@ function tablelength(T)
   return count;
 end
 
---this code is used to draw the speedometer
-cx = 235;
-cy = 210;
-radius = 15;
-local speedometer_back = "white";
-local speedometer_needle = "black";
-local min_speed_angle = 100;
-local max_speed_angle = 75;
-local needle_radius_inner = 2;
-local needle_radius_outer = 17;
-
 --void. draws the white circle for the speedometer as well as the labels
 function drawspeedometer()
+	--these values are used to draw the speedometer
+	local cx = 235;
+	local cy = 210;
+	local radius = 15;
+	local speedometer_back = "white";
+	local speedometer_needle = "black";
+	local min_speed_angle = 100;
+	local max_speed_angle = 60;
+	local needle_radius_inner = 2;
+	local needle_radius_outer = 17;
+	local speedometer_unit_label = "mph";
+
 	--draw the speedometer background
 	for foo = 0, 360, 1 do
 		x = cx + radius * math.cos(foo);
@@ -237,6 +240,9 @@ function drawspeedometer()
 			* math.sin(math.rad((min_speed_angle + (((fiveinc / labels_inc) - 1) * inc_angle_degrees)) % 360));
 		gui.drawtext(label_x, label_y, "" .. fiveinc, speedometer_back, speedometer_needle);
 	end
+
+	-- draw the mph or kmph label on the game
+	gui.drawtext(cx + needle_radius_inner + 3, cy + radius, speedometer_unit_label, speedometer_back, speedometer_needle);
 end
 
 -- this variable stores the last AI paper toss
@@ -256,9 +262,20 @@ frame = 1;
 -- unsigned int. stores the first frame of the run nil if not frame has been found yet
 starting_frame = nil;
 last_frame_menu_text = "no";
+local last_reset_frame = 0;
 
 while (true) do
 	cur_lives = lives();
+	--reset the game if the game ends
+	if (cur_lives < 1 and gameisrunning and not is_in_menu() and frame - last_reset_frame > 30) then
+		cur_lives = 5;
+		gameisrunning = false;
+		last_reset_frame = frame;
+		emu.softreset();
+	end
+
+	gameisrunning = true;
+
 	papers = memory.readbyte(0x00B1);
 	gui.text(50, 10, papers);
 	gui.text(250, 15, total_score());
@@ -301,7 +318,10 @@ while (true) do
 			end
 		end
 	end
-	drawspeedometer();
+	--only draw the speedometer if the paperboy is delivering
+	if (menu_text == "no") then
+		drawspeedometer();
+	end
 
 	gui.text(100, 10, tablelength(successful_toss_frames) .. " succesful AI tosses");
 	--gui.text(100, 40, #successful_toss_frames .. " successful_toss_frames found");
