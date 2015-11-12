@@ -1,6 +1,5 @@
 --speedometer = require "speedometer_module"
 
-local frame = 1;
 local file = '../data/run1.fm2';
 
 local gameisrunning = false;
@@ -128,7 +127,7 @@ function is_in_menu()
 			end
 		end
 	end
-	return max > 450;
+	return max > 600;
 end
 
 -- get all lines from a file, returns an empty 
@@ -175,8 +174,6 @@ function tablelength(T)
   return count;
 end
 
-
-
 -- this variable stores the last AI paper toss
 last_toss = 0;
 last_toss_score = 0;
@@ -199,41 +196,48 @@ local last_reset_frame = 0;
 local move_list = {};
 move_list.moves = {};
 move_list.new = function(arg_frame, arg_button_state)
-	local move = {};
+	move = {};
 	move.frame = arg_frame;
 	move.button_state = arg_button_state;
-	move_list.moves[#move_list] = move;
+	move_list.moves[tablelength(move_list.moves)] = move;
 end
 
 --this variable stores the index of the next known move
-local move_list_cur = 0;
+move_list_cur = 0;
 
 --initialize on the last score
 last_frame_score = 0;
 
+--sync frames by resetting the emulation
+emu.softreset();
+----------------------------------------------------------------------
+-- 					Emulation Loop
+----------------------------------------------------------------------
 while (true) do
 	cur_lives = lives();
 	cur_score = total_score();
 
 	--reset the game if the game ends
-	if (cur_lives < 1 and gameisrunning and not is_in_menu() and frame - last_reset_frame > 30) then
+	if (cur_lives < 1 and gameisrunning and not is_in_menu() and frame > 30) then
 		cur_lives = 5;
 		gameisrunning = false;
 		last_reset_frame = frame;
+		frame  = 0;
 		emu.softreset();
 	end
 
 	gameisrunning = true;
 
+	-- read the byte for the number of current papers
 	papers = memory.readbyte(0x00B1);
 	gui.text(50, 10, papers);
 	gui.text(250, 15, total_score());
 	if (is_in_menu()) then
 		menu_text = "yes";
+		gui.text(50, 200, "Skipping through menus");
 	else 
 		menu_text = "no";
 	end
-	gui.text(50, 20, "In menu: " .. menu_text);
 	if (menu_text == "yes" and frame % 3 == 0) then
 		--spam start and A until out of menus
 		joypad.write(1, start_press);
@@ -250,8 +254,9 @@ while (true) do
 	end
 
 	--check if a known successful move is known for the current frame
-	if (#move_list.moves > 1 and frame - last_reset_frame == move_list[move_list_cur].frame) then
+	if (tablelength(move_list.moves) > 0 and frame == move_list.moves[move_list_cur].frame) then
 		joypad.write(1, move_list[move_list_cur].button_state);
+		emu.print("tossing paper from move_list at " .. frame);
 		move_list_cur = move_list_cur + 1;
 	end
 
@@ -263,12 +268,14 @@ while (true) do
 	else
 		--check for score increase
 		score_delimit = 2000; --ms in between score increases
-		if (cur_score > last_frame_score and frame - last_toss < 1500 and menu_text == "no") then
+		-- check if this is a legal score increase block
+		if (cur_score > last_frame_score and frame - last_toss < 1500 
+			and menu_text == "no" and frame ~= 0) then
 			score_increased_last_frame = true;
 		end
-		if (score_increased_last_frame and cur_score <= last_frame_score) then
+		if (score_increased_last_frame and cur_score <= last_frame_score and frame ~= 0) then
 			move_list.new(last_frame, a_press);
-			emu.print("successful toss frame found at " .. (last_toss - last_reset_frame));
+			emu.print("successful toss frame found at " .. last_toss .. ", " .. tablelength(move_list.moves) .. " moves known");
 			score_increased_last_frame = false;
 		end
 	end
@@ -277,7 +284,7 @@ while (true) do
 		--speedometer.draw();
 	end
 
-	gui.text(100, 10, tablelength(move_list.moves) .. " succesful AI tosses");
+	gui.text(100, 10, tablelength(move_list.moves) .. " successful AI tosses");
 	--gui.text(100, 40, #successful_toss_frames .. " successful_toss_frames found");
 	last_frame_menu_text = menu_text;
 	last_frame_score = cur_score;
