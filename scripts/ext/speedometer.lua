@@ -1,7 +1,9 @@
-module("speedometermodule", package.seall)
+local speedometer_module = {};
+
+speedometer_module.test = "hello from speedometer";
 
 --void. draws the white circle for the speedometer as well as the labels
-function draw()
+function speedometer_module.draw()
 	--these values are used to draw the speedometer
 	local cx = 235;
 	local cy = 210;
@@ -69,3 +71,5 @@ function draw()
 	-- draw the mph or kmph label on the game
 	gui.drawtext(cx + needle_radius_inner + 3, cy + radius, speedometer_unit_label, speedometer_back, speedometer_needle);
 end
+
+return speedometer_module;

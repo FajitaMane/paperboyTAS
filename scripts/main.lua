@@ -1,4 +1,6 @@
---speedometer = require "speedometer_module"
+speedometer = require "ext.speedometer";
+
+--emu.print(speedometer.test);
 
 local file = '../data/run1.fm2';
 
@@ -281,7 +283,7 @@ while (true) do
 	end
 	--only draw the speedometer if the paperboy is delivering
 	if (menu_text == "no") then
-		--speedometer.draw();
+		speedometer.draw();
 	end
 
 	gui.text(100, 10, tablelength(move_list.moves) .. " successful AI tosses");
