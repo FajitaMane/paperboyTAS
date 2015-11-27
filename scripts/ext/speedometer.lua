@@ -1,4 +1,8 @@
+--this sets the runtime environment and which modules to include accordingly
+local env = "dev";
+
 local speedometer_module = {};
+
 
 speedometer_module.test = "hello from speedometer";
 
