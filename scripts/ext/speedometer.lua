@@ -1,6 +1,3 @@
---this sets the runtime environment and which modules to include accordingly
-local env = "dev";
-
 local speedometer_module = {};
 
 
@@ -47,7 +44,6 @@ function speedometer_module.draw()
 		speedf = speedf - 0.30;
 		speedf = speedf * (1 / 0.7);
 	end
-	gui.text(10, 30, "Speed " .. speedf);
 	needle_angle = min_speed_angle + math.floor(speedf * ((360 - min_speed_angle) + max_speed_angle));
 	x1 = cx + needle_radius_outer * math.cos(math.rad(needle_angle));
 	y1 = cy + needle_radius_outer * math.sin(math.rad(needle_angle));

@@ -1,22 +1,19 @@
-speedometer = require "ext.speedometer";
+local env = "dev";
 
---emu.print(speedometer.test);
+buttons = require "enum.buttons";
+
+if (env == "movie" or env == "dev") then
+	speedometer = require "ext.speedometer";
+end
+
+--speed through the game as fast as possible if collecting data
+if (env == "prod" or env == "dev") then
+	emu.speedmode("turbo")
+end
 
 local file = '../data/run1.fm2';
 
 local gameisrunning = false;
-
--- maps the button bit masks and allows for drawing them in the emu window
-buttons = {
-	A      = {x=30, y=5, w=3, h=3, bitmask=1},
-	B      = {x=24, y=5, w=3, h=3, bitmask=2},
-	select = {x=18, y=7, w=3, h=1, bitmask=4},
-	start  = {x=12, y=7, w=3, h=1, bitmask=8},
-	up     = {x=4, y=1, w=2, h=2, bitmask=16},
-	down   = {x=4, y=7, w=2, h=2, bitmask=32},
-	left   = {x=1, y=4, w=2, h=2, bitmask=64},
-	right  = {x=7, y=4, w=2, h=2, bitmask=128}
-}
 
 menu_colors = {};
 --add white to menu_colors
@@ -34,28 +31,6 @@ menu_colors[2] = {};
 menu_colors[2].r = 0;
 menu_colors[2].g = 0;
 menu_colors[2].b = 0;
-
-a_press = {
-	up = true,
-	down = false,
-	left = false,
-	right = false,
-	A = true,
-	B = false,
-	start = false,
-	select = false
-}
-
-start_press = {
-	up = false,
-	down = false,
-	left = false,
-	right = false,
-	A = true,
-	B = false,
-	start = true,
-	select = false
-}
 
 --returns current player score
 function score()
@@ -147,6 +122,14 @@ function bike_speed()
 	return memory.readbyte(0x00BA);
 end
 
+function get_trailing_lives(lives)
+	local FRAME_TRAIL = 30;
+	if (lives < trailing_lives) then
+		emu.print("found necessary move at " .. frame - FRAME_TRAIL);
+	end
+end
+
+
 function get_buttons()
 	if (taseditor.engaged()) then
 		if hasbit(taseditor.getInput(frame - 5, 1), buttons.A.bitmask) then
@@ -183,6 +166,8 @@ successful_toss_frames = {};
 successful_toss_count = 0;
 input_table = lines_from(file);
 
+trailing_lives = 0;
+
 --expirementing with delimiting score increases
 score_delta_chunks = {}; -- linked list of score increases
 score_increased_last_frame = false; -- bool, true if score was increaseing on the prior frame
@@ -195,8 +180,41 @@ starting_frame = nil;
 last_frame_menu_text = "no";
 local last_reset_frame = 0;
 
-local move_list = {};
+move_list = {};
 move_list.moves = {};
+--print all entries in the array for debugging
+move_list.fprint = function()
+	for i = 0, (tablelength(move_list.moves) - 1), 1  do
+		emu.print("index: " .. i .. " with frame " .. move_list.moves[i].frame .. " press a");
+	end
+	emu.print("\n");
+end
+--returns true if the move_list contains a button state for the given frame
+move_list.contains = function(argframe)
+	for i = 0, (tablelength(move_list.moves) - 1), 1 do
+		if (move_list.moves[i].frame == argframe) then
+			return true;
+		end
+	end
+	return false;
+end
+--insert sort by frame
+move_list.fsort = function()
+	for x = 1, (tablelength(move_list.moves) - 1), 1 do
+		for i = 1, (tablelength(move_list.moves) - 1), 1 do
+			--create local copy instead of pointer
+			local itermove = move_list.moves[i - 1];
+			for i2 = i - 1, 0, -1 do
+				if (move_list.moves[i2].frame > move_list.moves[i].frame) then
+					--emu.print("moving item " .. move_list.moves[i2].frame .. " after " .. move_list.moves[i].frame);
+					move_list.moves[i2] = move_list.moves[i];
+					move_list.moves[i] = itermove;
+					move_list.fprint();
+				end
+			end
+		end
+	end
+end
 move_list.new = function(arg_frame, arg_button_state)
 	move = {};
 	move.frame = arg_frame;
@@ -212,10 +230,14 @@ last_frame_score = 0;
 
 --sync frames by resetting the emulation
 emu.softreset();
+
+--this value stores whether or not this is the first run
+virgin_run = true;
 ----------------------------------------------------------------------
 -- 					Emulation Loop
 ----------------------------------------------------------------------
 while (true) do
+	--call RAM reading functions
 	cur_lives = lives();
 	cur_score = total_score();
 
@@ -225,27 +247,43 @@ while (true) do
 		gameisrunning = false;
 		last_reset_frame = frame;
 		frame  = 0;
+		move_list_cur = 0;
+		virgin_run = false;
+		move_list.fsort();
+		emu.print('\n' .. tablelength(move_list.moves) .. " known frames for this run");
+		move_list.fprint();
 		emu.softreset();
 	end
 
 	gameisrunning = true;
 
+	--game is running so check for trailing crashes
+	get_trailing_lives(cur_lives);
+
 	-- read the byte for the number of current papers
 	papers = memory.readbyte(0x00B1);
-	gui.text(50, 10, papers);
-	gui.text(250, 15, total_score());
+	--gui.text(50, 10, papers);
+	--gui.text(250, 15, total_score());
 	if (is_in_menu()) then
 		menu_text = "yes";
 		gui.text(50, 200, "Skipping through menus");
 	else 
 		menu_text = "no";
 	end
+
+	--check if the game is in a menu and throttle button presses
 	if (menu_text == "yes" and frame % 3 == 0) then
 		--spam start and A until out of menus
-		joypad.write(1, start_press);
+		joypad.write(1, buttons.start_press);
 	end
+
+	--check if 
 	if (menu_text == "no" and last_frame_menu_text == "yes") then
-		emu.print("deliveries started at " .. frame);
+		--emu.print("deliveries started at " .. frame);
+		if (tablelength(move_list.moves) > 0 and not virgin_run) then
+			emu.print("move_list_cur = " .. move_list_cur);
+			emu.print("waiting to toss at frame" .. move_list.moves[move_list_cur].frame);
+		end
 	end
 
 	gui.text(5, 8, "Lives: " .. cur_lives);
@@ -257,14 +295,14 @@ while (true) do
 
 	--check if a known successful move is known for the current frame
 	if (tablelength(move_list.moves) > 0 and frame == move_list.moves[move_list_cur].frame) then
-		joypad.write(1, move_list[move_list_cur].button_state);
+		joypad.write(1, move_list.moves[move_list_cur].button_state);
 		emu.print("tossing paper from move_list at " .. frame);
 		move_list_cur = move_list_cur + 1;
 	end
 
 	--randomly toss papers
-	if (frame % (math.random(300) + 50) == 0 and menu_text == "no") then
-		joypad.write(1, a_press);
+	if (frame % (math.random(200) + 50) == 0 and menu_text == "no") then
+		joypad.write(1, buttons.a_press);
 		last_toss = frame;
 		last_toss_score = total_score();
 	else
@@ -275,9 +313,10 @@ while (true) do
 			and menu_text == "no" and frame ~= 0) then
 			score_increased_last_frame = true;
 		end
-		if (score_increased_last_frame and cur_score <= last_frame_score and frame ~= 0) then
-			move_list.new(last_frame, a_press);
-			emu.print("successful toss frame found at " .. last_toss .. ", " .. tablelength(move_list.moves) .. " moves known");
+		if (score_increased_last_frame and cur_score <= last_frame_score and last_toss ~= 0) then
+			--check for dupes only if frame would otherwise be legal
+			if (not move_list.contains(frame)) then move_list.new(last_toss, buttons.a_press) end;
+			--emu.print("successful toss frame found at " .. last_toss .. ", " .. tablelength(move_list.moves) .. " moves known");
 			score_increased_last_frame = false;
 		end
 	end
