@@ -35,4 +35,26 @@ button_module.start_press = {
 	select = false
 }
 
+button_module.left_forward = {
+	up = false,
+	down = false,
+	left = true,
+	right = false,
+	A = false,
+	B = false,
+	start = false,
+	select = false
+}
+
+button_module.right_forward = {
+	up = false,
+	down = false,
+	left = false,
+	right = true,
+	A = false,
+	B = false,
+	start = false,
+	select = false	
+}
+
 return button_module;
